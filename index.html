@@ -1,1 +1,165 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Gyro Ball</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0a0a0f;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: monospace;
+      overflow: hidden;
+    }
+    h2 {
+      font-size: 0.75rem;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: #7850ff;
+      margin-bottom: 20px;
+    }
+    canvas {
+      box-shadow: 0 0 60px rgba(100,60,255,0.2), 0 0 0 1px #1e1e2e;
+      border-radius: 50%;
+    }
+    #btn {
+      margin-top: 22px;
+      padding: 13px 32px;
+      background: #7850ff;
+      border: none;
+      color: #fff;
+      font-family: monospace;
+      font-size: 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    #btn:disabled { background: #333; color: #777; }
+    #info {
+      margin-top: 14px;
+      font-size: 0.72rem;
+      color: #555;
+      text-align: center;
+      line-height: 2;
+    }
+    .val { color: #50ffb0; }
+  </style>
+</head>
+<body>
+
+<h2>Gyro Ball</h2>
+<canvas id="c" width="300" height="300"></canvas>
+<button id="btn">▶ Enable Motion</button>
+<div id="info">
+  status: <span class="val" id="st">inactive</span><br>
+  accel x: <span class="val" id="dax">—</span>
+  &nbsp; y: <span class="val" id="day">—</span><br>
+  angle: <span class="val" id="dangle">0</span>
+</div>
+
+<script>
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const W = 300, H = 300, CX = 150, CY = 150, TR = 108, BR = 15;
+
+  let angle = 0;
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Track glow
+    ctx.save();
+    ctx.shadowColor = 'rgba(120,80,255,0.3)';
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.arc(CX, CY, TR, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(120,80,255,0.18)';
+    ctx.lineWidth = 20;
+    ctx.stroke();
+    ctx.restore();
+
+    // Track dashes
+    ctx.beginPath();
+    ctx.arc(CX, CY, TR, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(200,180,255,0.12)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 7]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Orange center ball
+    const og = ctx.createRadialGradient(CX-4, CY-4, 2, CX, CY, 13);
+    og.addColorStop(0, '#ffe080');
+    og.addColorStop(1, '#ff6a00');
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,140,0,0.8)';
+    ctx.shadowBlur = 16;
+    ctx.beginPath();
+    ctx.arc(CX, CY, 13, 0, Math.PI * 2);
+    ctx.fillStyle = og;
+    ctx.fill();
+    ctx.restore();
+
+    // Purple rolling ball
+    const bx = CX + TR * Math.cos(angle);
+    const by = CY + TR * Math.sin(angle);
+    const pg = ctx.createRadialGradient(bx-5, by-5, 2, bx, by, BR);
+    pg.addColorStop(0, '#d8b4ff');
+    pg.addColorStop(1, '#5510cc');
+    ctx.save();
+    ctx.shadowColor = 'rgba(160,80,255,0.95)';
+    ctx.shadowBlur = 24;
+    ctx.beginPath();
+    ctx.arc(bx, by, BR, 0, Math.PI * 2);
+    ctx.fillStyle = pg;
+    ctx.fill();
+    ctx.restore();
+
+    requestAnimationFrame(draw);
+  }
+
+  function onMotion(e) {
+    // Use accelerationIncludingGravity — works without gyroscope
+    const acc = e.accelerationIncludingGravity;
+    if (!acc) { document.getElementById('st').textContent = 'no accelerometer'; return; }
+
+    const x = acc.x; // left/right tilt: negative = left, positive = right
+    const y = acc.y; // forward/back tilt
+
+    document.getElementById('dax').textContent = x !== null ? x.toFixed(2) : 'null';
+    document.getElementById('day').textContent = y !== null ? y.toFixed(2) : 'null';
+    document.getElementById('st').textContent = 'active ✓';
+
+    if (x === null) return;
+
+    // x ranges roughly from -9.8 to 9.8 (gravity units)
+    // map it to -π to π for full circle
+    const targetAngle = (x / 9.8) * Math.PI;
+
+    // Smooth lerp
+    angle = angle + (targetAngle - angle) * 0.1;
+
+    document.getElementById('dangle').textContent = angle.toFixed(2);
+  }
+
+  document.getElementById('btn').addEventListener('click', async () => {
+    if (typeof DeviceMotionEvent !== 'undefined' &&
+        typeof DeviceMotionEvent.requestPermission === 'function') {
+      const res = await DeviceMotionEvent.requestPermission();
+      if (res !== 'granted') { alert('Permission denied'); return; }
+    }
+    window.addEventListener('devicemotion', onMotion);
+    document.getElementById('btn').textContent = '✓ Motion On';
+    document.getElementById('btn').disabled = true;
+    document.getElementById('st').textContent = 'waiting for data...';
+  });
+
+  draw();
+</script>
+</body>
+</html>
